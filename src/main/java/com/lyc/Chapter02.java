@@ -53,6 +53,20 @@ public class Chapter02 {
     }
 
     /**
+     * 购物车
+     * @param conn
+     * @param session
+     * @param item
+     * @param count
+     */
+    public void addToCart(Jedis conn, String session, String item, int count) {
+        if (count <= 0)
+            conn.hdel("cart:" + session, item);
+        else
+            conn.hset("cart:" + session, item, String.valueOf(count));
+    }
+
+    /**
      * 定期清除session线程
      */
     public class CleanSessionThread extends Thread {
@@ -90,6 +104,8 @@ public class Chapter02 {
                 ArrayList<String> sessionKeys = new ArrayList<>();
                 for (String token : tokens) {
                     sessionKeys.add("viewed:" + token);
+                    //update:同时清除该用户的购物车
+                    sessionKeys.add("cart:" + token);
                 }
 
                 conn.del(sessionKeys.toArray(new String[sessionKeys.size()]));
