@@ -4,6 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 
+import java.util.*;
+
 /**
  * 使用Redis构建web应用
  */
@@ -50,4 +52,50 @@ public class Chapter02 {
         }
     }
 
+    /**
+     * 定期清除session线程
+     */
+    public class CleanSessionThread extends Thread {
+        private Jedis conn;
+        private int limit;
+        private boolean quit;
+
+        public CleanSessionThread(int limit) {
+            this.conn = new Jedis("127.0.0.1");
+            this.conn.select(15);
+            this.limit = limit;
+        }
+
+        public void quit() {
+            quit = true;
+        }
+
+        @Override
+        public void run() {
+            while (!quit) {
+                long size = conn.zcard("recent:");
+                if (size <= limit) {
+                    try {
+                        sleep(1000);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    continue;
+                }
+
+                long endIndex = Math.min(size - limit, 100);
+                Set<String> tokenSet = conn.zrange("recent:", 0, endIndex - 1);
+                String[] tokens = tokenSet.toArray(new String[tokenSet.size()]);
+
+                ArrayList<String> sessionKeys = new ArrayList<>();
+                for (String token : tokens) {
+                    sessionKeys.add("viewed:" + token);
+                }
+
+                conn.del(sessionKeys.toArray(new String[sessionKeys.size()]));
+                conn.hdel("login:", tokens);
+                conn.zrem("recent:", tokens);
+            }
+        }
+    }
 }
